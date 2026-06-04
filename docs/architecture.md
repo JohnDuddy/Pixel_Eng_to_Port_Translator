@@ -6,12 +6,14 @@ flowchart LR
     Room["Room Database\nConversation History"]
     Settings["Encrypted Preferences\nBackend URL + App Token"]
     Backend["FastAPI Backend\n127.0.0.1:8001 via adb reverse\nHTTPS in production"]
-    OpenAI["OpenAI Realtime API\nWebSocket + ephemeral credentials"]
+    OpenAI["OpenAI Responses API\nText translation"]
+    TTS["Android Text-to-Speech\nEnglish + pt-BR voice"]
 
     Android --> Room
     Android --> Settings
     Android --> Backend
     Backend --> OpenAI
+    Android --> TTS
 ```
 
 ## Android
@@ -21,29 +23,25 @@ flowchart LR
 - Material 3
 - Room database
 - Encrypted settings
-- OkHttp networking (REST + WebSocket)
+- OkHttp networking (REST)
 - Coroutines and Flow
-- Realtime engines: on-device speech (default) and an OpenAI Realtime WebSocket
-  client streaming PCM16 audio via Android AudioRecord/AudioTrack
+- Android SpeechRecognizer for English and Brazilian Portuguese input
+- Android Text-to-Speech for spoken translated output
 
 ## Backend
 
 - FastAPI
 - `OPENAI_API_KEY` stored server-side only
 - `/health`
-- `/api/realtime/client-secret`
-- `/api/realtime/call`
+- `/api/translate/text`
 
 ## Realtime Flow
 
-1. Android requests a temporary Realtime credential from the FastAPI backend.
-2. Backend calls OpenAI Realtime client-secret/session endpoints using the standard server-side API key.
-3. Backend returns a short-lived client secret to Android.
-4. Android opens a WebSocket to the OpenAI Realtime API with that client secret,
-   streams microphone audio (PCM16 24 kHz) as `input_audio_buffer.append`, and plays
-   the `response.output_audio.delta` frames back through AudioTrack. Transcript events
-   provide the original and translated text.
-5. Android stores conversation messages locally in Room.
+1. Android listens through SpeechRecognizer in the selected speaker language.
+2. Android sends the recognized phrase to `/api/translate/text`.
+3. Backend calls the OpenAI Responses API with the server-side API key.
+4. Android stores the original and translated text locally in Room.
+5. Android Text-to-Speech speaks the translated phrase in the target language.
 
 ## Pixel 9 Runtime
 

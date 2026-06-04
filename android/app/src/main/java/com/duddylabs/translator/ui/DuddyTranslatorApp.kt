@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,15 +31,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.duddylabs.translator.R
 import com.duddylabs.translator.data.SpeakerLanguage
 import com.duddylabs.translator.data.ThemePreference
 import com.duddylabs.translator.data.TranslationStyle
 import com.duddylabs.translator.data.TranslatorMode
 import com.duddylabs.translator.data.VoiceGender
 import com.duddylabs.translator.data.VoiceSpeed
-import com.duddylabs.translator.data.opposite
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -76,6 +81,15 @@ fun DuddyTranslatorApp(viewModel: TranslatorViewModel) {
 @Composable
 private fun HomeScreen(viewModel: TranslatorViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Image(
+            painter = painterResource(id = R.drawable.menu_portrait),
+            contentDescription = "Duddy Translator menu artwork",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(260.dp)
+                .clip(RoundedCornerShape(8.dp)),
+        )
         Text(
             "English and Brazilian Portuguese voice translator",
             style = MaterialTheme.typography.titleMedium,
@@ -174,7 +188,7 @@ private fun ConversationScreen(state: TranslatorUiState, viewModel: TranslatorVi
                         .weight(1f)
                         .fillMaxSize(),
                 ) {
-                    Text("Falar Português")
+                    Text("Falar Portugues")
                 }
             }
             OutlinedButton(
@@ -301,19 +315,6 @@ private fun SettingsScreen(settings: com.duddylabs.translator.settings.Translato
                 onValueChange = viewModel::updateAppToken,
                 label = { Text("App Token") },
                 modifier = Modifier.fillMaxWidth(),
-            )
-        }
-        item {
-            SettingChips(
-                "Realtime Engine",
-                com.duddylabs.translator.data.RealtimeEngine.entries,
-                settings.realtimeEngine,
-                viewModel::updateRealtimeEngine,
-            )
-            Text(
-                "On-Device Speech is the stable default. OpenAI Realtime Voice streams live " +
-                    "microphone audio for lower latency and needs the backend running.",
-                style = MaterialTheme.typography.labelSmall,
             )
         }
         item {

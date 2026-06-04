@@ -9,19 +9,30 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $AndroidRoot = Join-Path $ProjectRoot "android"
 $ApkPath = Join-Path $AndroidRoot "app\build\outputs\apk\debug\app-debug.apk"
-$AndroidStudioJbr = "C:\Program Files\Android\Android Studio\jbr"
 
-if (Test-Path $AndroidStudioJbr) {
-    $env:JAVA_HOME = $AndroidStudioJbr
+$JavaCandidates = @(
+    @(
+        "C:\Program Files\Android\Android Studio\jbr",
+        "C:\Program Files\Android\Android Studio\jre",
+        $env:JAVA_HOME
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }
+)
+
+if ($JavaCandidates.Count -gt 0) {
+    $env:JAVA_HOME = $JavaCandidates[0]
+    Write-Host "Using JAVA_HOME=$env:JAVA_HOME"
+}
+else {
+    Write-Warning "Android Studio Java runtime was not found. Gradle will use java from PATH if available."
 }
 
 $SdkRoot = $env:ANDROID_HOME
-if (-not $SdkRoot -or -not (Test-Path $SdkRoot)) {
+if (-not $SdkRoot -or -not (Test-Path -LiteralPath $SdkRoot)) {
     $SdkRoot = Join-Path $env:LOCALAPPDATA "Android\Sdk"
 }
 
 $Adb = Join-Path $SdkRoot "platform-tools\adb.exe"
-if (-not (Test-Path $Adb)) {
+if (-not (Test-Path -LiteralPath $Adb)) {
     throw "adb.exe was not found. Install Android SDK Platform Tools or check Android Studio SDK settings."
 }
 
@@ -37,7 +48,7 @@ finally {
     Pop-Location
 }
 
-if (-not (Test-Path $ApkPath)) {
+if (-not (Test-Path -LiteralPath $ApkPath)) {
     throw "Debug APK was not created at $ApkPath."
 }
 

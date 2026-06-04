@@ -86,8 +86,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
-    // Realtime voice uses the OpenAI Realtime WebSocket transport with Android's own
-    // AudioRecord/AudioTrack (okhttp above), so no native WebRTC library is needed.
+    // Pixel 9 voice input uses Android SpeechRecognizer plus backend text translation
+    // and Android Text-to-Speech. No native WebRTC library is shipped.
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

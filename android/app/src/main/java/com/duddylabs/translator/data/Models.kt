@@ -35,14 +35,5 @@ enum class ThemePreference(val label: String) {
     DARK("Dark"),
 }
 
-enum class RealtimeEngine(val label: String) {
-    // On-device speech recognition + backend text translation + Android text-to-speech.
-    ANDROID_SPEECH("On-Device Speech"),
-
-    // Streams microphone audio to the OpenAI Realtime API over a WebSocket and plays the
-    // translated voice back directly. Lower latency, requires a live backend + network.
-    OPENAI_REALTIME("OpenAI Realtime Voice"),
-}
-
 fun SpeakerLanguage.opposite(): SpeakerLanguage =
     if (this == SpeakerLanguage.ENGLISH) SpeakerLanguage.PORTUGUESE_BRAZIL else SpeakerLanguage.ENGLISH

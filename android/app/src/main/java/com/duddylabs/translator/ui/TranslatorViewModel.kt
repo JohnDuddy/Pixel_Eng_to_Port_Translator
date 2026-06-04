@@ -181,10 +181,6 @@ class TranslatorViewModel(
         container.settingsStore.update { it.copy(highContrast = value) }
     }
 
-    fun updateRealtimeEngine(value: com.duddylabs.translator.data.RealtimeEngine) {
-        container.settingsStore.update { it.copy(realtimeEngine = value) }
-    }
-
     fun updateHistorySearch(query: String) {
         internalState.update { it.copy(historySearch = query) }
     }
@@ -297,9 +293,6 @@ class TranslatorViewModel(
             rawMessage.contains("HTTP 500", ignoreCase = true) ||
                 rawMessage.contains("OpenAI API key", ignoreCase = true) ->
                 "Check backend\\.env and make sure OPENAI_API_KEY is set, then restart scripts\\run-backend.ps1."
-            rawMessage.contains("Realtime WebSocket", ignoreCase = true) ||
-                rawMessage.contains("realtime voice", ignoreCase = true) ->
-                "Check the OpenAI key, gpt-realtime model access, and internet connection on the PC backend. You can also switch Settings > Realtime Engine back to On-Device Speech."
             else ->
                 "Check that the backend is running, the Pixel 9 USB tunnel is active, and microphone permission is allowed."
         }

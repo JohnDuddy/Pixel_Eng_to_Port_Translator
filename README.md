@@ -77,21 +77,16 @@ If **Start Conversation** shows **Needs attention**, check these first:
 
 Realtime startup errors are shown inside the app instead of closing the app.
 
-## Realtime Engine
+## Voice Engine
 
-**Settings > Realtime Engine** chooses how voice translation works:
+The Pixel 9 app uses the stable Android speech path:
 
-- **On-Device Speech** (default): Android speech recognition, backend text
-  translation, and Android Text-to-Speech. Stable; works offline for recognition.
-- **OpenAI Realtime Voice**: streams microphone audio (PCM16 mono, 24 kHz) to the
-  OpenAI Realtime API over a WebSocket using an ephemeral client secret minted by
-  the backend, and plays the translated voice back with Android `AudioTrack`. Lower
-  latency and more natural, but needs the backend reachable and network access.
+- Android `SpeechRecognizer` hears English or Brazilian Portuguese.
+- The PC backend translates the recognized text with the OpenAI API.
+- Android Text-to-Speech speaks the translated phrase aloud.
 
-The earlier native WebRTC client was removed: the `org.webrtc` native library was
-crashing on the Pixel 9 network thread. The WebSocket engine above replaces it and
-uses only Android's own `AudioRecord`/`AudioTrack`, so there is no native voice
-library to crash. Switching engines takes effect the next time a conversation starts.
+The earlier native WebRTC client remains removed because the `org.webrtc` native
+library crashed on the Pixel 9 network thread.
 
 ## Modes
 
