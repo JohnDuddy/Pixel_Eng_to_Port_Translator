@@ -1,0 +1,32 @@
+{
+  "name": "duddy-translator",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5190 --strictPort",
+    "bridge": "node scripts/translate-server.mjs",
+    "build": "tsc -b && vite build",
+    "test": "node scripts/test-translate-bridge.mjs",
+    "lint": "eslint .",
+    "preview": "vite preview --host 127.0.0.1 --port 5191"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "vite": "^8.0.12",
+    "typescript": "~6.0.2",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "typescript-eslint": "^8.59.2"
+  }
+}
