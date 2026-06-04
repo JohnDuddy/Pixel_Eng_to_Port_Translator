@@ -1,3 +1,5 @@
+import secrets
+
 from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -29,7 +31,10 @@ def verify_app_token(
 ) -> None:
     if not settings.allowed_app_token:
         return
-    if x_duddy_app_token != settings.allowed_app_token:
+    # Constant-time comparison avoids leaking the token through response timing.
+    if x_duddy_app_token is None or not secrets.compare_digest(
+        x_duddy_app_token, settings.allowed_app_token
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid app token.",

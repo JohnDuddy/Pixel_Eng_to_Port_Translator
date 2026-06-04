@@ -6,6 +6,20 @@ import httpx
 from .config import Settings
 from .models import TextTranslationRequest, TranslatorMode
 
+# JSON schema handed to the Responses API so the model is constrained to return exactly
+# these keys. This replaces relying on prompt wording alone; the plain-text parsing in
+# parse_translation_json is kept only as a defensive fallback.
+TRANSLATION_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "original_text": {"type": "string"},
+        "literal_translation": {"type": "string"},
+        "polished_translation": {"type": "string"},
+    },
+    "required": ["original_text", "literal_translation", "polished_translation"],
+    "additionalProperties": False,
+}
+
 
 def build_text_translation_prompt(request: TextTranslationRequest) -> str:
     mode_note = {
@@ -90,6 +104,14 @@ async def create_text_translation(
             json={
                 "model": settings.openai_text_model,
                 "input": build_text_translation_prompt(request),
+                "text": {
+                    "format": {
+                        "type": "json_schema",
+                        "name": "translation",
+                        "strict": True,
+                        "schema": TRANSLATION_SCHEMA,
+                    },
+                },
             },
         )
         response.raise_for_status()

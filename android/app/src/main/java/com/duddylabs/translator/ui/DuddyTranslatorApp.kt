@@ -129,6 +129,21 @@ private fun ConversationScreen(state: TranslatorUiState, viewModel: TranslatorVi
             }
         }
 
+        if (state.mode == TranslatorMode.MEDICAL) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(12.dp)) {
+                    Text("Medical use disclaimer", fontWeight = FontWeight.Bold)
+                    Text(
+                        "This is an automated aid, not a certified medical interpreter. " +
+                            "Translations may contain errors. For diagnosis, consent, medication, " +
+                            "or any clinical decision, use a qualified human interpreter and confirm " +
+                            "critical details directly with the patient or clinician.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+
         if (state.mode == TranslatorMode.CONTINUOUS) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = viewModel::startContinuous) {

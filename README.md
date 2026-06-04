@@ -85,11 +85,12 @@ library is crashing on the Pixel 9 network thread.
 ## Modes
 
 - Push-to-Talk Interpreter
-- Continuous Conversation
+- Continuous Conversation - hands-free; after each translation is spoken the
+  microphone re-arms and alternates language for the next speaker.
 - Travel Mode
 - Medical Precision Mode
 
-Medical mode stores and displays original speech, literal translation, and polished clinical translation.
+Medical mode stores and displays original speech, literal translation, and polished clinical translation. It also shows an in-app disclaimer: the app is an automated aid, not a certified medical interpreter.
 
 ## Security
 
@@ -97,6 +98,10 @@ Medical mode stores and displays original speech, literal translation, and polis
 - The backend reads the standard API key and creates temporary Realtime client credentials.
 - Android uses a configurable app token stored with encrypted preferences.
 - Conversation history is stored locally with Room.
+- The default `ALLOWED_APP_TOKEN` is `dev-local-token`, intended only for the
+  USB `adb reverse` localhost setup. Change it in `backend\.env` and in the app's
+  **Settings > App Token** before exposing the backend on any real network. The
+  backend compares tokens with a constant-time check.
 
 ## Validation
 

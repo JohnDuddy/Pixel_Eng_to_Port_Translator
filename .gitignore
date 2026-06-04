@@ -19,7 +19,8 @@ android/.idea/
 
 # Python backend
 backend/.venv/
-backend/__pycache__/
+__pycache__/
+*.pyc
 backend/.pytest_cache/
 backend/.env
 
@@ -30,6 +31,9 @@ node_modules
 *.local
 .env
 .env.*
+# ...but keep the committed template
+!.env.example
+!backend/.env.example
 
 # Editor files
 .vscode/*

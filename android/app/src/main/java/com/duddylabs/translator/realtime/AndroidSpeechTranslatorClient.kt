@@ -7,6 +7,7 @@ import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
+import android.speech.tts.UtteranceProgressListener
 import com.duddylabs.translator.data.SpeakerLanguage
 import com.duddylabs.translator.data.TranslatorMode
 import com.duddylabs.translator.data.opposite
@@ -42,12 +43,69 @@ class AndroidSpeechTranslatorClient(
     private var pendingSpeech: Pair<String, SpeakerLanguage>? = null
     private var lastTranslation: InterpreterEvent.Translation? = null
 
+    // Continuous mode keeps the conversation hands-free: after each translated turn is
+    // spoken aloud, the recognizer re-arms for the next speaker, alternating languages so
+    // a back-and-forth English/Portuguese conversation works without button presses.
+    private var continuousActive = false
+    private var continuousLanguage = SpeakerLanguage.ENGLISH
+
     override suspend fun start(config: ConversationConfig) {
         currentConfig = config
         ensureTextToSpeech()
     }
 
     override suspend fun beginPushToTalk(speakerLanguage: SpeakerLanguage) {
+        continuousActive = false
+        startListening(speakerLanguage)
+    }
+
+    override suspend fun endPushToTalk() {
+        withContext(Dispatchers.Main.immediate) {
+            recognizer?.stopListening()
+        }
+    }
+
+    override suspend fun startContinuous() {
+        continuousActive = true
+        continuousLanguage = currentConfig.sourceLanguage
+        startListening(continuousLanguage)
+    }
+
+    override suspend fun stopContinuous() {
+        continuousActive = false
+        withContext(Dispatchers.Main.immediate) {
+            recognizer?.cancel()
+        }
+        _events.emit(InterpreterEvent.Stopped)
+    }
+
+    override suspend fun speakTranslation(text: String, language: SpeakerLanguage) {
+        speak(text, language)
+    }
+
+    override suspend fun repeatLastTranslation() {
+        lastTranslation?.let {
+            _events.emit(it)
+            speak(it.polishedTranslation, it.targetLanguage)
+        }
+    }
+
+    override suspend fun close() {
+        continuousActive = false
+        withContext(Dispatchers.Main.immediate) {
+            recognizer?.cancel()
+            recognizer?.destroy()
+            recognizer = null
+            textToSpeech?.stop()
+            textToSpeech?.shutdown()
+            textToSpeech = null
+            ttsReady = false
+            pendingSpeech = null
+        }
+        _events.emit(InterpreterEvent.Stopped)
+    }
+
+    private suspend fun startListening(speakerLanguage: SpeakerLanguage) {
         val listeningConfig = currentConfig.copy(
             sourceLanguage = speakerLanguage,
             targetLanguage = speakerLanguage.opposite(),
@@ -69,45 +127,6 @@ class AndroidSpeechTranslatorClient(
         }
     }
 
-    override suspend fun endPushToTalk() {
-        withContext(Dispatchers.Main.immediate) {
-            recognizer?.stopListening()
-        }
-    }
-
-    override suspend fun startContinuous() {
-        beginPushToTalk(currentConfig.sourceLanguage)
-    }
-
-    override suspend fun stopContinuous() {
-        endPushToTalk()
-    }
-
-    override suspend fun speakTranslation(text: String, language: SpeakerLanguage) {
-        speak(text, language)
-    }
-
-    override suspend fun repeatLastTranslation() {
-        lastTranslation?.let {
-            _events.emit(it)
-            speak(it.polishedTranslation, it.targetLanguage)
-        }
-    }
-
-    override suspend fun close() {
-        withContext(Dispatchers.Main.immediate) {
-            recognizer?.cancel()
-            recognizer?.destroy()
-            recognizer = null
-            textToSpeech?.stop()
-            textToSpeech?.shutdown()
-            textToSpeech = null
-            ttsReady = false
-            pendingSpeech = null
-        }
-        _events.emit(InterpreterEvent.Stopped)
-    }
-
     private fun createRecognitionListener(config: ConversationConfig): RecognitionListener =
         object : RecognitionListener {
             override fun onReadyForSpeech(params: Bundle?) = Unit
@@ -121,6 +140,17 @@ class AndroidSpeechTranslatorClient(
             override fun onError(error: Int) {
                 scope.launch {
                     _events.emit(InterpreterEvent.Error(recognitionErrorMessage(error)))
+                    // In hands-free mode a "no speech" timeout just means the speaker has not
+                    // started yet, so keep listening in the same language instead of stopping.
+                    if (continuousActive) {
+                        if (error == SpeechRecognizer.ERROR_NO_MATCH ||
+                            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                        ) {
+                            startListening(config.sourceLanguage)
+                        } else {
+                            continuousActive = false
+                        }
+                    }
                 }
             }
 
@@ -133,6 +163,9 @@ class AndroidSpeechTranslatorClient(
                 if (text.isNullOrBlank()) {
                     scope.launch {
                         _events.emit(InterpreterEvent.Error("I did not catch that. Try speaking again."))
+                        if (continuousActive) {
+                            startListening(config.sourceLanguage)
+                        }
                     }
                     return
                 }
@@ -165,6 +198,9 @@ class AndroidSpeechTranslatorClient(
             lastTranslation = translation
             _events.emit(InterpreterEvent.SpeakingTranslation)
             _events.emit(translation)
+            // The next speaker in a continuous conversation replies in the language we just
+            // translated into, so hand the recognizer that language once the audio finishes.
+            continuousLanguage = config.targetLanguage
             speak(result.polishedTranslation, config.targetLanguage)
         } catch (error: Throwable) {
             _events.emit(
@@ -172,6 +208,9 @@ class AndroidSpeechTranslatorClient(
                     "Text translation failed. Check that the backend is running, OPENAI_API_KEY is set, and the Pixel 9 USB tunnel is active.\n\nDetails: ${error.message.orEmpty()}",
                 ),
             )
+            if (continuousActive) {
+                startListening(config.sourceLanguage)
+            }
         }
     }
 
@@ -210,10 +249,30 @@ class AndroidSpeechTranslatorClient(
         textToSpeech = TextToSpeech(context.applicationContext) { status ->
             ttsReady = status == TextToSpeech.SUCCESS
             if (ttsReady) {
+                textToSpeech?.setOnUtteranceProgressListener(utteranceListener)
                 pendingSpeech?.let { (text, language) ->
                     pendingSpeech = null
                     speak(text, language)
                 }
+            }
+        }
+    }
+
+    private val utteranceListener = object : UtteranceProgressListener() {
+        override fun onStart(utteranceId: String?) = Unit
+
+        override fun onDone(utteranceId: String?) {
+            // Re-arm the recognizer only after our own audio has finished playing, so the
+            // microphone does not pick up the translated speech we just spoke.
+            if (continuousActive) {
+                scope.launch { startListening(continuousLanguage) }
+            }
+        }
+
+        @Deprecated("Deprecated in Java")
+        override fun onError(utteranceId: String?) {
+            if (continuousActive) {
+                scope.launch { startListening(continuousLanguage) }
             }
         }
     }
