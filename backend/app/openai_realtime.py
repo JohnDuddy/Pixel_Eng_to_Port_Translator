@@ -43,6 +43,11 @@ def build_session_config(
             "instructions": build_interpreter_instructions(request),
             "audio": {
                 "input": {
+                    # PCM16 mono at 24 kHz, matching the Android AudioRecord capture.
+                    "format": {"type": "audio/pcm", "rate": 24000},
+                    # Enable transcription of the speaker's audio so the app can show the
+                    # original text alongside the translated voice.
+                    "transcription": {"model": "gpt-4o-mini-transcribe"},
                     "turn_detection": {
                         "type": "server_vad",
                         "threshold": 0.55,
@@ -51,6 +56,7 @@ def build_session_config(
                     },
                 },
                 "output": {
+                    "format": {"type": "audio/pcm"},
                     "voice": request.voice,
                 },
             },

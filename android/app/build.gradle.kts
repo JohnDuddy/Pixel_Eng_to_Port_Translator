@@ -86,8 +86,8 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
-    // WebRTC dependency for realtime audio sessions. Android Studio/Gradle will resolve it from Maven.
-    implementation("io.github.webrtc-sdk:android:144.7559.05")
+    // Realtime voice uses the OpenAI Realtime WebSocket transport with Android's own
+    // AudioRecord/AudioTrack (okhttp above), so no native WebRTC library is needed.
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

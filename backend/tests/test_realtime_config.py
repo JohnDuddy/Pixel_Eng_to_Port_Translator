@@ -29,3 +29,14 @@ def test_session_config_uses_realtime_model_and_voice():
     assert config["session"]["model"] == "gpt-realtime"
     assert config["session"]["audio"]["output"]["voice"] == "cedar"
     assert config["session"]["audio"]["input"]["turn_detection"]["type"] == "server_vad"
+
+
+def test_session_config_pins_pcm_audio_and_enables_transcription():
+    request = RealtimeClientSecretRequest()
+    settings = Settings(openai_api_key="test")
+
+    audio = build_session_config(request, settings)["session"]["audio"]
+
+    assert audio["input"]["format"] == {"type": "audio/pcm", "rate": 24000}
+    assert audio["output"]["format"] == {"type": "audio/pcm"}
+    assert audio["input"]["transcription"]["model"]

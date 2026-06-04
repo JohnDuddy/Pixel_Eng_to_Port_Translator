@@ -68,4 +68,7 @@ For Wi-Fi testing on a real Pixel 9, bind the backend to the PC network interfac
 - Speaker buttons resize to the available device width.
 - Local cleartext HTTP is allowed only for loopback development addresses.
 - The stable Pixel 9 path uses Android speech recognition, backend text translation, and Android Text-to-Speech.
-- The WebRTC implementation is parked until the native Pixel 9 crash is repaired.
+- A second realtime engine (Settings > Realtime Engine > OpenAI Realtime Voice)
+  streams microphone audio to the OpenAI Realtime API over a WebSocket using Android
+  AudioRecord/AudioTrack. It replaces the removed native WebRTC client, which crashed
+  on the Pixel 9 network thread.

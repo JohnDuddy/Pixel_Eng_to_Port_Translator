@@ -304,6 +304,19 @@ private fun SettingsScreen(settings: com.duddylabs.translator.settings.Translato
             )
         }
         item {
+            SettingChips(
+                "Realtime Engine",
+                com.duddylabs.translator.data.RealtimeEngine.entries,
+                settings.realtimeEngine,
+                viewModel::updateRealtimeEngine,
+            )
+            Text(
+                "On-Device Speech is the stable default. OpenAI Realtime Voice streams live " +
+                    "microphone audio for lower latency and needs the backend running.",
+                style = MaterialTheme.typography.labelSmall,
+            )
+        }
+        item {
             SettingChips("Voice Speed", VoiceSpeed.entries, settings.voiceSpeed, viewModel::updateVoiceSpeed)
         }
         item {

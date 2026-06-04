@@ -3,6 +3,7 @@ package com.duddylabs.translator.settings
 import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.duddylabs.translator.data.RealtimeEngine
 import com.duddylabs.translator.data.ThemePreference
 import com.duddylabs.translator.data.TranslationStyle
 import com.duddylabs.translator.data.VoiceGender
@@ -20,6 +21,7 @@ data class TranslatorSettings(
     val textScale: Float = 1.0f,
     val themePreference: ThemePreference = ThemePreference.SYSTEM,
     val highContrast: Boolean = false,
+    val realtimeEngine: RealtimeEngine = RealtimeEngine.ANDROID_SPEECH,
 )
 
 class SecureSettingsStore(context: Context) {
@@ -55,6 +57,7 @@ class SecureSettingsStore(context: Context) {
             textScale = preferences.getFloat("textScale", 1.0f),
             themePreference = enumValueOf(preferences.getString("themePreference", ThemePreference.SYSTEM.name)!!),
             highContrast = preferences.getBoolean("highContrast", false),
+            realtimeEngine = enumValueOf(preferences.getString("realtimeEngine", RealtimeEngine.ANDROID_SPEECH.name)!!),
         )
 
     private fun readBackendBaseUrl(): String {
@@ -76,6 +79,7 @@ class SecureSettingsStore(context: Context) {
             .putFloat("textScale", settings.textScale)
             .putString("themePreference", settings.themePreference.name)
             .putBoolean("highContrast", settings.highContrast)
+            .putString("realtimeEngine", settings.realtimeEngine.name)
             .apply()
     }
 }
