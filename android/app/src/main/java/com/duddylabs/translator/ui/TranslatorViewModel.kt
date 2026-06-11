@@ -34,6 +34,7 @@ enum class Screen {
 }
 
 data class TranscriptRow(
+    val messageId: Long? = null,
     val speaker: SpeakerLanguage,
     val target: SpeakerLanguage,
     val original: String,
@@ -50,6 +51,8 @@ data class TranslatorUiState(
     val currentConversationId: Long? = null,
     val rows: List<TranscriptRow> = emptyList(),
     val recentMessages: List<MessageEntity> = emptyList(),
+    val partialTranscript: String = "",
+    val partialLanguage: SpeakerLanguage? = null,
     val historySearch: String = "",
     val typedText: String = "",
     val error: String = "",
@@ -108,6 +111,8 @@ class TranslatorViewModel(
                     sourceLanguage = SpeakerLanguage.ENGLISH,
                     targetLanguage = SpeakerLanguage.PORTUGUESE_BRAZIL,
                     translationStyle = settings.value.translationStyle,
+                    voiceSpeed = settings.value.voiceSpeed,
+                    voiceGender = settings.value.voiceGender,
                 ),
             )
         }
@@ -142,6 +147,34 @@ class TranslatorViewModel(
     fun repeatLastTranslation() {
         launchRealtimeAction("repeat translation") {
             container.realtimeClient.repeatLastTranslation()
+        }
+    }
+
+    fun replayTranscript(row: TranscriptRow) {
+        launchRealtimeAction("replay translation") {
+            container.realtimeClient.speakTranslation(row.spokenTranslation(), row.target)
+        }
+    }
+
+    fun retryTranscript(row: TranscriptRow) {
+        launchRealtimeAction("re-translate phrase") {
+            translateTurn(
+                text = row.original,
+                speaker = row.speaker,
+                mode = internalState.value.mode,
+                clearTypedText = false,
+                offlineOnly = false,
+            )
+        }
+    }
+
+    fun correctTranscript(row: TranscriptRow) {
+        internalState.update {
+            it.copy(
+                typedText = row.original,
+                status = "Edit the backup phrase, then choose a direction.",
+                error = "",
+            )
         }
     }
 
@@ -181,8 +214,38 @@ class TranslatorViewModel(
         container.settingsStore.update { it.copy(highContrast = value) }
     }
 
+    fun updateSaveHistory(value: Boolean) {
+        container.settingsStore.update { it.copy(saveHistory = value) }
+    }
+
+    fun updatePreferCellularData(value: Boolean) {
+        container.settingsStore.update { it.copy(preferCellularData = value) }
+    }
+
+    fun updateOfflineMedicalFallbackEnabled(value: Boolean) {
+        container.settingsStore.update { it.copy(offlineMedicalFallbackEnabled = value) }
+    }
+
+    fun updateStreamingAudioEnabled(value: Boolean) {
+        container.settingsStore.update { it.copy(streamingAudioEnabled = value) }
+    }
+
     fun updateHistorySearch(query: String) {
         internalState.update { it.copy(historySearch = query) }
+    }
+
+    fun clearHistory() {
+        launchRealtimeAction("clear history") {
+            container.database.conversationDao().deleteAllConversations()
+            internalState.update {
+                it.copy(
+                    rows = emptyList(),
+                    currentConversationId = null,
+                    status = "History cleared",
+                    error = "",
+                )
+            }
+        }
     }
 
     fun updateTypedText(value: String) {
@@ -200,35 +263,33 @@ class TranslatorViewModel(
             }
 
             val mode = internalState.value.mode
-            val target = speaker.opposite()
-            ensureConversation(mode)
-            handleInterpreterEvent(
-                InterpreterEvent.OriginalTranscript(
-                    language = speaker,
-                    text = text,
-                ),
+            translateTurn(
+                text = text,
+                speaker = speaker,
+                mode = mode,
+                clearTypedText = true,
+                offlineOnly = false,
             )
-            val result = container.backendApi.translateText(
-                TextTranslationRequest(
-                    text = text,
-                    mode = mode,
-                    sourceLanguage = speaker,
-                    targetLanguage = target,
-                    translationStyle = settings.value.translationStyle,
-                ),
+        }
+    }
+
+    fun translateTypedTextOffline(speaker: SpeakerLanguage) {
+        launchRealtimeAction("translate typed text offline") {
+            val text = internalState.value.typedText.trim()
+            if (text.isBlank()) {
+                internalState.update {
+                    it.copy(status = "Ready", error = "Enter a medical phrase to translate offline.")
+                }
+                return@launchRealtimeAction
+            }
+
+            translateTurn(
+                text = text,
+                speaker = speaker,
+                mode = TranslatorMode.MEDICAL,
+                clearTypedText = true,
+                offlineOnly = true,
             )
-            handleInterpreterEvent(InterpreterEvent.SpeakingTranslation)
-            handleInterpreterEvent(
-                InterpreterEvent.Translation(
-                    sourceLanguage = speaker,
-                    targetLanguage = target,
-                    originalText = result.originalText,
-                    literalTranslation = result.literalTranslation,
-                    polishedTranslation = result.polishedTranslation,
-                ),
-            )
-            container.realtimeClient.speakTranslation(result.polishedTranslation, target)
-            internalState.update { it.copy(typedText = "") }
         }
     }
 
@@ -242,9 +303,13 @@ class TranslatorViewModel(
             """.trimIndent()
         }
 
-    private suspend fun ensureConversation(mode: TranslatorMode) {
+    private suspend fun ensureConversation(mode: TranslatorMode): Long? {
+        if (!settings.value.saveHistory) {
+            return null
+        }
+
         if (internalState.value.currentConversationId != null) {
-            return
+            return internalState.value.currentConversationId
         }
 
         val id = container.database.conversationDao().insertConversation(
@@ -254,6 +319,7 @@ class TranslatorViewModel(
             ),
         )
         internalState.update { it.copy(currentConversationId = id) }
+        return id
     }
 
     private fun launchRealtimeAction(actionName: String, action: suspend () -> Unit) {
@@ -266,6 +332,54 @@ class TranslatorViewModel(
                 }
                 handleRealtimeFailure(actionName, error)
             }
+        }
+    }
+
+    private suspend fun translateTurn(
+        text: String,
+        speaker: SpeakerLanguage,
+        mode: TranslatorMode,
+        clearTypedText: Boolean,
+        offlineOnly: Boolean,
+    ) {
+        val target = speaker.opposite()
+        ensureConversation(mode)
+        handleInterpreterEvent(
+            InterpreterEvent.OriginalTranscript(
+                language = speaker,
+                text = text,
+            ),
+        )
+        val config = ConversationConfig(
+            mode = mode,
+            sourceLanguage = speaker,
+            targetLanguage = target,
+            translationStyle = settings.value.translationStyle,
+            voiceSpeed = settings.value.voiceSpeed,
+            voiceGender = settings.value.voiceGender,
+        )
+        val result = if (offlineOnly) {
+            container.translationRepository.translateOffline(text, config)
+                ?: error("This phrase is not available in the offline medical phrasebook.")
+        } else {
+            container.translationRepository.translate(text, config)
+        }
+        handleInterpreterEvent(InterpreterEvent.SpeakingTranslation)
+        if (result.model.startsWith("offline")) {
+            internalState.update { it.copy(status = "Offline medical fallback") }
+        }
+        handleInterpreterEvent(
+            InterpreterEvent.Translation(
+                sourceLanguage = speaker,
+                targetLanguage = target,
+                originalText = result.originalText,
+                literalTranslation = result.literalTranslation,
+                polishedTranslation = result.polishedTranslation,
+            ),
+        )
+        container.realtimeClient.speakTranslation(result.polishedTranslation, target)
+        if (clearTypedText) {
+            internalState.update { it.copy(typedText = "") }
         }
     }
 
@@ -286,7 +400,7 @@ class TranslatorViewModel(
         val guidance = when {
             rawMessage.contains("Failed to connect", ignoreCase = true) ||
                 rawMessage.contains("Connection refused", ignoreCase = true) ->
-                "Start scripts\\run-backend.ps1 on the PC, keep the Pixel 9 plugged in, and run scripts\\install-pixel9-debug.ps1 again so adb reverse is active."
+                "For USB, start scripts\\run-backend.ps1 and rerun scripts\\install-pixel9-debug.ps1. For Wi-Fi, start scripts\\run-backend.ps1 -Lan and set Backend URL to the PC LAN URL shown there."
             rawMessage.contains("HTTP 401", ignoreCase = true) ||
                 rawMessage.contains("HTTP 403", ignoreCase = true) ->
                 "Check the app token in Settings and ALLOWED_APP_TOKEN in backend\\.env."
@@ -294,7 +408,7 @@ class TranslatorViewModel(
                 rawMessage.contains("OpenAI API key", ignoreCase = true) ->
                 "Check backend\\.env and make sure OPENAI_API_KEY is set, then restart scripts\\run-backend.ps1."
             else ->
-                "Check that the backend is running, the Pixel 9 USB tunnel is active, and microphone permission is allowed."
+                "Check that the backend is running, the Backend URL matches USB or Wi-Fi mode, and microphone permission is allowed."
         }
 
         return "Could not $actionName. $guidance\n\nDetails: $message"
@@ -306,29 +420,53 @@ class TranslatorViewModel(
             InterpreterEvent.Connected -> internalState.update { it.copy(status = "Connected") }
             InterpreterEvent.Listening -> internalState.update { it.copy(status = "Listening", isListening = true) }
             InterpreterEvent.SpeakingTranslation -> internalState.update {
-                it.copy(status = "Speaking translation", isListening = false)
+                it.copy(
+                    status = "Speaking translation",
+                    isListening = false,
+                    partialTranscript = "",
+                    partialLanguage = null,
+                )
             }
             InterpreterEvent.Stopped -> internalState.update { it.copy(status = "Stopped", isListening = false) }
             is InterpreterEvent.OriginalTranscript -> internalState.update {
-                it.copy(status = "Heard ${event.language.label}")
+                it.copy(
+                    status = "Heard ${event.language.label}",
+                    partialTranscript = "",
+                    partialLanguage = null,
+                )
+            }
+            is InterpreterEvent.PartialTranscript -> internalState.update {
+                it.copy(
+                    status = "Hearing ${event.language.label}",
+                    partialTranscript = event.text,
+                    partialLanguage = event.language,
+                    isListening = true,
+                )
             }
             is InterpreterEvent.Translation -> {
-                val conversationId = internalState.value.currentConversationId ?: return
-                val message = MessageEntity(
-                    conversationId = conversationId,
-                    sourceLanguage = event.sourceLanguage,
-                    targetLanguage = event.targetLanguage,
-                    originalText = event.originalText,
-                    literalTranslation = event.literalTranslation,
-                    polishedTranslation = event.polishedTranslation,
-                    timestamp = event.timestamp,
-                )
-                container.database.conversationDao().insertMessage(message)
+                val conversationId = ensureConversation(internalState.value.mode)
+                val messageId = if (conversationId != null) {
+                    val message = MessageEntity(
+                        conversationId = conversationId,
+                        sourceLanguage = event.sourceLanguage,
+                        targetLanguage = event.targetLanguage,
+                        originalText = event.originalText,
+                        literalTranslation = event.literalTranslation,
+                        polishedTranslation = event.polishedTranslation,
+                        timestamp = event.timestamp,
+                    )
+                    container.database.conversationDao().insertMessage(message)
+                } else {
+                    null
+                }
                 internalState.update { state ->
                     state.copy(
                         status = "Speaking ${event.targetLanguage.statusLabel()}",
                         isListening = false,
+                        partialTranscript = "",
+                        partialLanguage = null,
                         rows = state.rows + TranscriptRow(
+                            messageId = messageId,
                             speaker = event.sourceLanguage,
                             target = event.targetLanguage,
                             original = event.originalText,
@@ -340,11 +478,20 @@ class TranslatorViewModel(
                 }
             }
             is InterpreterEvent.Error -> internalState.update {
-                it.copy(error = event.message, status = "Needs attention", isListening = false)
+                it.copy(
+                    error = event.message,
+                    status = "Needs attention",
+                    isListening = false,
+                    partialTranscript = "",
+                    partialLanguage = null,
+                )
             }
         }
     }
 }
+
+private fun TranscriptRow.spokenTranslation(): String =
+    polished.ifBlank { literal }
 
 private fun SpeakerLanguage.statusLabel(): String =
     when (this) {

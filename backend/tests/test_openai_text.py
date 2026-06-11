@@ -16,8 +16,14 @@ def test_text_prompt_requests_json_and_direction():
 
     assert "Return JSON only" in prompt
     assert "en-US to pt-BR" in prompt
+    assert "Translate meaning, not word-for-word" in prompt
+    assert "Brazilian Portuguese" in prompt
+    assert "context from prior turns" in prompt
+    assert "spoken aloud immediately" in prompt
     assert "Where is the pharmacy?" in prompt
     assert "travel" in prompt.lower()
+    assert "Squamous cell carcinoma = Carcinoma espinocelular" in prompt
+    assert "Mohs surgery = Cirurgia de Mohs" in prompt
 
 
 def test_extract_response_text_from_responses_payload():

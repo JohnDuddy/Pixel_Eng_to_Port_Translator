@@ -5,9 +5,10 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     openai_api_key: str = ""
-    openai_realtime_model: str = "gpt-realtime"
+    openai_realtime_model: str = "gpt-realtime-2"
     openai_text_model: str = "gpt-4.1-mini"
     allowed_app_token: str = "dev-local-token"
+    session_token_secret: str = ""
     token_ttl_seconds: int = 60
 
     model_config = SettingsConfigDict(

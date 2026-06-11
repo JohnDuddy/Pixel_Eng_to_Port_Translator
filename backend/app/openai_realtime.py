@@ -3,14 +3,13 @@ import json
 import httpx
 
 from .config import Settings
+from .interpreter_prompt import INTERPRETER_CORE_INSTRUCTIONS
 from .models import RealtimeClientSecretRequest, SdpOfferRequest, TranslatorMode
 
 
 def build_interpreter_instructions(request: RealtimeClientSecretRequest | SdpOfferRequest) -> str:
     base = [
-        "You are Duddy Translator, a professional real-time interpreter.",
-        "Translate only between English (US) and Brazilian Portuguese.",
-        "Preserve names, numbers, dates, medicine names, and financial terms.",
+        INTERPRETER_CORE_INSTRUCTIONS,
         "Keep latency low and avoid long commentary unless the selected mode needs precision.",
         "Speak the translated audio naturally in the target language.",
         f"Current direction: {request.source_language} to {request.target_language}.",
@@ -48,12 +47,9 @@ def build_session_config(
                     # Enable transcription of the speaker's audio so the app can show the
                     # original text alongside the translated voice.
                     "transcription": {"model": "gpt-4o-mini-transcribe"},
-                    "turn_detection": {
-                        "type": "server_vad",
-                        "threshold": 0.55,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 520 if request.mode != TranslatorMode.MEDICAL else 780,
-                    },
+                    # Android streaming uses client-side AudioRecord VAD and manually
+                    # commits input_audio_buffer when a turn is ready.
+                    "turn_detection": None,
                 },
                 "output": {
                     "format": {"type": "audio/pcm"},

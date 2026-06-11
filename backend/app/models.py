@@ -30,6 +30,11 @@ class RealtimeClientSecretResponse(BaseModel):
     model: str
 
 
+class BackendSessionTokenResponse(BaseModel):
+    session_token: str
+    expires_at: int
+
+
 class SdpOfferRequest(BaseModel):
     sdp: str = Field(min_length=8)
     mode: TranslatorMode = TranslatorMode.PUSH_TO_TALK

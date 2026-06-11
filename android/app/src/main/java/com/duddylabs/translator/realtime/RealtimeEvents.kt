@@ -3,12 +3,16 @@ package com.duddylabs.translator.realtime
 import com.duddylabs.translator.data.SpeakerLanguage
 import com.duddylabs.translator.data.TranslationStyle
 import com.duddylabs.translator.data.TranslatorMode
+import com.duddylabs.translator.data.VoiceGender
+import com.duddylabs.translator.data.VoiceSpeed
 
 data class ConversationConfig(
     val mode: TranslatorMode,
     val sourceLanguage: SpeakerLanguage,
     val targetLanguage: SpeakerLanguage,
     val translationStyle: TranslationStyle,
+    val voiceSpeed: VoiceSpeed = VoiceSpeed.NORMAL,
+    val voiceGender: VoiceGender = VoiceGender.FEMALE,
 )
 
 sealed interface InterpreterEvent {
@@ -18,6 +22,11 @@ sealed interface InterpreterEvent {
     data object SpeakingTranslation : InterpreterEvent
     data object Stopped : InterpreterEvent
     data class OriginalTranscript(
+        val language: SpeakerLanguage,
+        val text: String,
+        val timestamp: Long = System.currentTimeMillis(),
+    ) : InterpreterEvent
+    data class PartialTranscript(
         val language: SpeakerLanguage,
         val text: String,
         val timestamp: Long = System.currentTimeMillis(),

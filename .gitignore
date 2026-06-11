@@ -26,6 +26,7 @@ backend/.env
 
 # Dependencies
 node_modules
+.tools/
 
 # Local env files
 *.local

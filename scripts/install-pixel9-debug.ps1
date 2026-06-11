@@ -1,5 +1,8 @@
 param(
     [string]$DeviceSerial = "",
+    [switch]$Lan,
+    [string]$BackendUrl = "",
+    [switch]$PreferCellularData,
     [switch]$BuildOnly,
     [switch]$SkipLaunch
 )
@@ -9,6 +12,40 @@ $ErrorActionPreference = "Stop"
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $AndroidRoot = Join-Path $ProjectRoot "android"
 $ApkPath = Join-Path $AndroidRoot "app\build\outputs\apk\debug\app-debug.apk"
+
+function Get-LanBackendUrl {
+    $address = Get-NetIPConfiguration |
+        Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq "Up" } |
+        ForEach-Object { $_.IPv4Address.IPAddress } |
+        Where-Object { $_ -and $_ -notlike "169.254.*" } |
+        Select-Object -First 1
+
+    if (-not $address) {
+        throw "No active LAN IPv4 address was found. Connect the PC to Wi-Fi/Ethernet or pass -BackendUrl manually."
+    }
+
+    return "http://${address}:8001"
+}
+
+function Get-BackendAppToken {
+    $envPath = Join-Path $ProjectRoot "backend\.env"
+    if (Test-Path -LiteralPath $envPath) {
+        $tokenLine = Get-Content -LiteralPath $envPath |
+            Where-Object { $_ -match "^\s*ALLOWED_APP_TOKEN\s*=" } |
+            Select-Object -Last 1
+        if ($tokenLine) {
+            return (($tokenLine -split "=", 2)[1]).Trim().Trim('"').Trim("'")
+        }
+    }
+
+    return "dev-local-token"
+}
+
+if (-not $BackendUrl) {
+    $BackendUrl = if ($Lan) { Get-LanBackendUrl } else { "http://127.0.0.1:8001" }
+}
+$AppToken = Get-BackendAppToken
+$PreferCellularValue = if ($PreferCellularData) { "true" } else { "false" }
 
 $JavaCandidates = @(
     @(
@@ -36,10 +73,13 @@ if (-not (Test-Path -LiteralPath $Adb)) {
     throw "adb.exe was not found. Install Android SDK Platform Tools or check Android Studio SDK settings."
 }
 
-Write-Host "Building Duddy Translator debug APK..."
+Write-Host "Building Duddy Translator debug APK for backend $BackendUrl..."
+if ($PreferCellularData) {
+    Write-Host "Prefer Cellular Data will default to ON for this build."
+}
 Push-Location -LiteralPath $AndroidRoot
 try {
-    & .\gradlew.bat :app:assembleDebug
+    & .\gradlew.bat :app:assembleDebug "-PDUDDY_BACKEND_URL=$BackendUrl" "-PDUDDY_APP_TOKEN=$AppToken" "-PDUDDY_PREFER_CELLULAR_DATA=$PreferCellularValue"
     if ($LASTEXITCODE -ne 0) {
         throw "Gradle build failed with exit code $LASTEXITCODE."
     }
@@ -58,10 +98,10 @@ if ($BuildOnly) {
 }
 
 try {
-    Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 -Uri "http://127.0.0.1:8001/health" | Out-Null
+    Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 -Uri "$($BackendUrl.TrimEnd('/'))/health" | Out-Null
 }
 catch {
-    Write-Warning "The local backend did not answer at http://127.0.0.1:8001/health. Start it with scripts\run-backend.ps1 before translating."
+    Write-Warning "The backend did not answer at $($BackendUrl.TrimEnd('/'))/health. Start scripts\run-backend.ps1$(if ($Lan) { ' -Lan' } else { '' }) before translating."
 }
 
 $deviceLines = & $Adb devices
@@ -92,10 +132,15 @@ if ($model -notmatch "Pixel 9") {
 }
 
 Write-Host "Using device: $model, Android $androidVersion, ABI $abi"
-Write-Host "Forwarding Pixel 9 localhost:8001 to this PC..."
-& $Adb -s $DeviceSerial reverse tcp:8001 tcp:8001
-if ($LASTEXITCODE -ne 0) {
-    throw "adb reverse failed with exit code $LASTEXITCODE."
+if ($BackendUrl -eq "http://127.0.0.1:8001") {
+    Write-Host "Forwarding Pixel 9 localhost:8001 to this PC..."
+    & $Adb -s $DeviceSerial reverse tcp:8001 tcp:8001
+    if ($LASTEXITCODE -ne 0) {
+        throw "adb reverse failed with exit code $LASTEXITCODE."
+    }
+}
+else {
+    Write-Host "Backend URL baked into debug APK: $BackendUrl"
 }
 
 Write-Host "Installing $ApkPath..."
@@ -109,4 +154,14 @@ if (-not $SkipLaunch) {
     & $Adb -s $DeviceSerial shell monkey -p com.duddylabs.translator.debug -c android.intent.category.LAUNCHER 1 | Out-Null
 }
 
-Write-Host "Pixel 9 setup complete. Keep scripts\run-backend.ps1 running while you translate."
+if ($BackendUrl.StartsWith("https://", [System.StringComparison]::OrdinalIgnoreCase)) {
+    if ($BackendUrl.Contains(".trycloudflare.com")) {
+        Write-Host "Pixel 9 quick-tunnel travel setup complete. Keep scripts\run-backend-travel.ps1 running while you translate."
+    }
+    else {
+        Write-Host "Pixel 9 stable travel setup complete. The app is using the public HTTPS backend."
+    }
+}
+else {
+    Write-Host "Pixel 9 setup complete. Keep scripts\run-backend.ps1$(if ($Lan) { ' -Lan' } else { '' }) running while you translate."
+}

@@ -17,6 +17,9 @@ def test_medical_mode_instructions_include_precision():
     assert "Medical precision mode" in instructions
     assert "pt-BR to en-US" in instructions
     assert "LITERAL" in instructions
+    assert "Translate meaning, not word-for-word" in instructions
+    assert "literal plus polished clinical translation" in instructions
+    assert "spoken aloud immediately" in instructions
 
 
 def test_session_config_uses_realtime_model_and_voice():
@@ -28,7 +31,7 @@ def test_session_config_uses_realtime_model_and_voice():
     assert config["session"]["type"] == "realtime"
     assert config["session"]["model"] == "gpt-realtime"
     assert config["session"]["audio"]["output"]["voice"] == "cedar"
-    assert config["session"]["audio"]["input"]["turn_detection"]["type"] == "server_vad"
+    assert config["session"]["audio"]["input"]["turn_detection"] is None
 
 
 def test_session_config_pins_pcm_audio_and_enables_transcription():

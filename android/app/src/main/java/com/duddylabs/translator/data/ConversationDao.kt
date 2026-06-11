@@ -32,4 +32,7 @@ interface ConversationDao {
 
     @Query("SELECT * FROM messages ORDER BY timestamp DESC LIMIT :limit")
     fun observeRecentMessages(limit: Int = 100): Flow<List<MessageEntity>>
+
+    @Query("DELETE FROM conversations")
+    suspend fun deleteAllConversations()
 }

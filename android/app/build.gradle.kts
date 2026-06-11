@@ -5,6 +5,24 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+fun String.toBuildConfigString(): String =
+    "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+val defaultBackendUrl: String =
+    providers.gradleProperty("DUDDY_BACKEND_URL")
+        .orElse("http://127.0.0.1:8001")
+        .get()
+
+val defaultAppToken: String =
+    providers.gradleProperty("DUDDY_APP_TOKEN")
+        .orElse("")
+        .get()
+
+val defaultPreferCellularData: String =
+    providers.gradleProperty("DUDDY_PREFER_CELLULAR_DATA")
+        .orElse("false")
+        .get()
+
 android {
     namespace = "com.duddylabs.translator"
     compileSdk = 35
@@ -17,6 +35,9 @@ android {
         versionName = "0.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "DEFAULT_BACKEND_URL", defaultBackendUrl.toBuildConfigString())
+        buildConfigField("String", "DEFAULT_APP_TOKEN", defaultAppToken.toBuildConfigString())
+        buildConfigField("boolean", "DEFAULT_PREFER_CELLULAR_DATA", defaultPreferCellularData)
         ndk {
             abiFilters += "arm64-v8a"
         }

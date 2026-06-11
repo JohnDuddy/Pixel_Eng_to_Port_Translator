@@ -4,6 +4,7 @@ import re
 import httpx
 
 from .config import Settings
+from .interpreter_prompt import INTERPRETER_CORE_INSTRUCTIONS
 from .models import TextTranslationRequest, TranslatorMode
 
 # JSON schema handed to the Responses API so the model is constrained to return exactly
@@ -30,8 +31,8 @@ def build_text_translation_prompt(request: TextTranslationRequest) -> str:
     }[request.mode]
 
     return (
-        "You are Duddy Translator, a professional interpreter between English (US) "
-        "and Brazilian Portuguese. Return JSON only, with no markdown code fence, using these exact keys: "
+        f"{INTERPRETER_CORE_INSTRUCTIONS} "
+        "Return JSON only, with no markdown code fence, using these exact keys: "
         "original_text, literal_translation, polished_translation. "
         f"Direction: {request.source_language} to {request.target_language}. "
         f"Style: {request.translation_style.value}. {mode_note}\n\n"

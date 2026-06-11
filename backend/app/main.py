@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from .config import Settings, get_settings
 from .models import (
+    BackendSessionTokenResponse,
     RealtimeClientSecretRequest,
     RealtimeClientSecretResponse,
     SdpOfferRequest,
@@ -13,6 +14,7 @@ from .models import (
 )
 from .openai_realtime import create_client_secret, create_realtime_call_answer
 from .openai_text import create_text_translation
+from .session_auth import create_session_token, verify_session_token
 
 app = FastAPI(title="Duddy Translator Backend", version="0.1.0")
 
@@ -30,7 +32,10 @@ def verify_app_token(
     settings: Settings = Depends(get_settings),
 ) -> None:
     if not settings.allowed_app_token:
-        return
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Backend app token is not configured.",
+        )
     # Constant-time comparison avoids leaking the token through response timing.
     if x_duddy_app_token is None or not secrets.compare_digest(
         x_duddy_app_token, settings.allowed_app_token
@@ -38,6 +43,21 @@ def verify_app_token(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid app token.",
+        )
+
+
+def verify_backend_session_token(
+    authorization: str | None = Header(default=None),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    token = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+
+    if not token or not verify_session_token(token, settings):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session token.",
         )
 
 
@@ -52,9 +72,19 @@ def health(settings: Settings = Depends(get_settings)) -> dict:
 
 
 @app.post(
+    "/api/auth/session-token",
+    response_model=BackendSessionTokenResponse,
+    dependencies=[Depends(verify_app_token)],
+)
+def auth_session_token(settings: Settings = Depends(get_settings)) -> BackendSessionTokenResponse:
+    token, expires_at = create_session_token(settings)
+    return BackendSessionTokenResponse(session_token=token, expires_at=expires_at)
+
+
+@app.post(
     "/api/realtime/client-secret",
     response_model=RealtimeClientSecretResponse,
-    dependencies=[Depends(verify_app_token)],
+    dependencies=[Depends(verify_backend_session_token)],
 )
 async def realtime_client_secret(
     request: RealtimeClientSecretRequest,
@@ -81,7 +111,7 @@ async def realtime_client_secret(
 
 @app.post(
     "/api/realtime/call",
-    dependencies=[Depends(verify_app_token)],
+    dependencies=[Depends(verify_backend_session_token)],
 )
 async def realtime_call(
     request: SdpOfferRequest,
@@ -100,7 +130,7 @@ async def realtime_call(
 @app.post(
     "/api/translate/text",
     response_model=TextTranslationResponse,
-    dependencies=[Depends(verify_app_token)],
+    dependencies=[Depends(verify_backend_session_token)],
 )
 async def translate_text(
     request: TextTranslationRequest,
